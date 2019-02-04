@@ -1,6 +1,7 @@
 import typing as t
 from functools import reduce
 import operator
+import sys
 from base import LispError
 from scanner import Symbol, Token
 from compiler import Instruction, Operator
@@ -14,6 +15,7 @@ class Machine:
             '+': lambda *args: sum(args),
             '-': lambda x, y: x - y,
             '*': lambda *args: product(args),
+            'exit': sys.exit,
         }
 
     def exec_(self, instructions: t.Iterable[Instruction]):
@@ -61,6 +63,7 @@ class Machine:
                 value = stack.pop()
                 self.env[symbol.content] = value
             else:
-                assert False, "The virtual machine encountered an invalid operator."
+                assert False, "The virtual machine encountered an invalid "\
+                "operator."
 
         return stack
