@@ -1,4 +1,5 @@
 import typing as t
+from enum import Enum
 from base import LispError
 from scanner import Token
 from parser_ import Expr
@@ -48,7 +49,16 @@ from parser_ import Expr
 # APPLY FUNCTION ON TOP OF STACK TO NEXT 2 VALUES BELOW IT
 # APPLY FUNCTION ON TOP OF STACK TO VALUE BELOW IT
 
-Instruction = t.NamedTuple('Instruction', [('expr', Expr)])
+class Operator(Enum):
+    push = 0
+    call = 1
+    def_ = 2
+
+Instruction = t.NamedTuple('Instruction', [
+    ('op', Operator),
+    ('expr', Expr),
+    ('args', t.List),
+])
 
 def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
     expr_stack = [expr]
@@ -59,7 +69,7 @@ def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
         if isinstance(expr, Instruction):
             yield expr
         elif isinstance(expr, Token):
-            yield Instruction(expr)
+            yield Instruction(Operator.push, expr)
         else:
             if not expr.subexprs:
                 raise LispError(
@@ -68,15 +78,15 @@ def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
                 )
 
             head = expr.subexprs[0]
+            tail = expr.subexprs[1:]
 
             if isinstance(head, Symbol):
                 if head.content == 'def':
-                    expr
-                    expr_stack.append(Quote(expr.subexprs[1]))
+                    expr_stack.append(Instruction, (expr.subexprs[1]))
                     expr_stack.append(expr.subexprs[2])
             
             expr_stack.append(Instruction(expr))
-            expr_stack.append(expr.subexprs[0])
+            expr_stack.append(head)
             expr_stack.extend(reversed(expr.subexprs[1:]))
 
 def compile_(expr: Expr) -> t.Iterator[Instruction]:
