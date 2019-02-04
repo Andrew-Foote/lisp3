@@ -63,45 +63,65 @@ Instruction = t.NamedTuple('Instruction', [
 def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
     expr_stack = [expr]
 
+    def compile_definition(location, tail):
+        try:
+            name_expr, value_expr = tail
+        except ValueError:
+            raise LispError(
+                f'Invalid definition; got {len(tail)} arguments but'
+                ' definitions must have exactly 2 arguments',
+                location
+            ) from None
+
+        if isinstance(name_expr, Token):
+            symbol = name_expr.content
+            
+            if isinstance(symbol, Symbol):
+                expr_stack.append(Instruction(
+                    Operator.def_,
+                    location,
+                    [name_expr.content]
+                ))
+                expr_stack.append(value_expr)
+                return
+        
+        raise LispError(
+            'Invalid name in definition; it must be a symbol',
+            name_expr.location
+        )
+
     while expr_stack:
         expr = expr_stack.pop()
+        location = expr.location
 
         if isinstance(expr, Instruction):
             yield expr
-            continue
-
-        if isinstance(expr, Token):
-            yield Instruction(Operator.push, expr.location, [expr.content])
-            continue
-        
-        if not expr.subexprs:
+        elif isinstance(expr, Token):
+            yield Instruction(Operator.push, location, [expr.content])
+        elif not expr.subexprs:
             raise LispError(
                 'empty procedure call expression',
-                expr.location
+                location
             )
+        else:
+            head = expr.subexprs[0]
+            tail = expr.subexprs[1:]
 
-        head = expr.subexprs[0]
-        tail = expr.subexprs[1:]
+            if isinstance(head, Token):
+                value = head.content
 
-        if isinstance(head, Symbol):
-            if head.content == 'def':
-                try:
-                    name_expr, value_expr = tail
-                except ValueError:
-                    raise LispError(f'Invalid definition; got {len(tail)} arguments but definitions must have exactly 2 arguments') from None
-
-                if isinstance(name_expr, Token):
-                    symbol = name_expr.content
-                    
-                    if isinstance(symbol, Symbol):
-                        expr_stack.append(Instruction(Operator.def_), expr.location, [name_expr.content.content])
-                        expr_stack.append(value_expr)
+                if isinstance(value, Symbol):
+                    if value.content == 'def':
+                        compile_definition(location, tail)
                         continue
-                raise LispError('Invalid name in definition; it must be a symbol')
-            
-        expr_stack.append(Instruction(Operator.call, expr.location, [len(tail)]))
-        expr_stack.append(head)
-        expr_stack.extend(reversed(tail))
+                
+            expr_stack.append(Instruction(
+                Operator.call,
+                location,
+                [len(tail)]
+            ))
+            expr_stack.append(head)
+            expr_stack.extend(reversed(tail))
 
 def compile_(expr: Expr) -> t.Iterator[Instruction]:
     for subexpr in expr.subexprs:

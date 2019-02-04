@@ -5,9 +5,11 @@ from scanner import Scanner
 from evaluator import eval_lexemes
 from parser_ import Parser
 from compiler import compile_
-from vm import exec_
+from machine import Machine
 
 if __name__ == '__main__':
+    machine = Machine()
+
     while True:
         print('>>>', end=' ', flush=True)
         scanner = Scanner()
@@ -32,7 +34,7 @@ if __name__ == '__main__':
 
                 if len(parser.expr_stack) == 1:
                     try:
-                        print(exec_(compile_(parser.end())))
+                        print(machine.exec_(compile_(parser.end())))
                     except LispError as error:
                         print(error.fullstr())
 

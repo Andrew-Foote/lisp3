@@ -24,7 +24,7 @@ class LexemeFragment:
         self.content = content
 
 ParserDirective = t.NamedTuple('ParserDirective', [('content', str)])
-Symbol = t.NamedTuple('Identifier', [('content', str)])
+Symbol = t.NamedTuple('Symbol', [('content', str)])
 
 Token = t.NamedTuple('Token', [
     ('location', Location),
