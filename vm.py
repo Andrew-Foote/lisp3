@@ -3,7 +3,7 @@ from functools import reduce
 import operator
 from base import LispError
 from scanner import Symbol, Token
-from compiler import Instruction
+from compiler import Instruction, Operator
 
 def product(iterable):
     return reduce(operator.mul, iterable, 1)
@@ -17,49 +17,53 @@ def exec_(instructions: t.Iterable[Instruction]):
     }
 
     for instruction in instructions:
-        expr = instruction.expr
+        operator = instruction.operator
+        location = instruction.location
 
-        if isinstance(expr, Token):
-            content = expr.content
+        if operator == Operator.push:
+            content, = instruction.args
 
-            if isinstance(content, Symbol):
-                symbol_content = content.content
-
-                try:
-                    value = env[symbol_content]
-                except KeyError:
-                    raise LispError(
-                        f'undefined symbol "{symbol_content}"',
-                        expr.location
-                    )
-                
-                stack.append(value)
-            else:
+            if not isinstance(content, Symbol):
                 stack.append(content)
-        else:
+                continue
+
+            symbol_content = content.content
+
+            try:
+                value = env[symbol_content]
+            except KeyError:
+                raise LispError(
+                    f'undefined symbol "{symbol_content}"',
+                    location
+                )
+                
+            stack.append(value)
+            continue
+
+        if operator == Operator.call:
             proc = stack.pop()
 
-            if isinstance(proc, Instruction):
-                if proc.content == 'def':
-                    value = stack.pop()
-                    symbol = stack.pop()
-                    env[symbol.content] = value
-                else:
-                    assert False, "The virtual machine received an invalid instruction."
-            else:
-                if not callable(proc):
-                    raise LispError(
-                        f'head of procedure call expression is not a procedure',
-                        expr.location
-                    )
+            if not callable(proc):
+                raise LispError(
+                    f'head of procedure call expression is not a procedure',
+                    location
+                )
 
-                arg_count = len(expr.subexprs) - 1
+            arg_count, = instruction.args
+            assert arg_count <= len(stack), "The virtual machine encountered a"\
+            "stack underflow."
+            args = [stack.pop() for _ in range(arg_count)]
+            args.reverse()
+            stack.append(proc(*args))
+            continue
 
-                assert arg_count <= len(stack), "The virtual machine encountered a"\
-                "stack underflow."
+        if operator == Operator.def_:
+            name, = instruction.args
+            assert stack, "The virtual machine encountered a stack underflow."
+            value = stack.pop()
+            env[name] = value
+            continue
 
-                args = [stack.pop() for _ in range(arg_count)]
-                args.reverse()
-                stack.append(proc(*args))
+        assert False, "The virtual machine encountered an invalid operator."
 
     return stack[-1]

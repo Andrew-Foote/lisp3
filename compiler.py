@@ -1,7 +1,7 @@
 import typing as t
 from enum import Enum
-from base import LispError
-from scanner import Token
+from base import Location, LispError
+from scanner import Symbol, Token
 from parser_ import Expr
 
 # Compile the Lisp program into bytecode for a virtual stack machine.
@@ -55,8 +55,8 @@ class Operator(Enum):
     def_ = 2
 
 Instruction = t.NamedTuple('Instruction', [
-    ('op', Operator),
-    ('expr', Expr),
+    ('operator', Operator),
+    ('location', Location),
     ('args', t.List),
 ])
 
@@ -68,26 +68,40 @@ def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
 
         if isinstance(expr, Instruction):
             yield expr
-        elif isinstance(expr, Token):
-            yield Instruction(Operator.push, expr)
-        else:
-            if not expr.subexprs:
-                raise LispError(
-                    'empty procedure call expression',
-                    expr.location
-                )
+            continue
 
-            head = expr.subexprs[0]
-            tail = expr.subexprs[1:]
+        if isinstance(expr, Token):
+            yield Instruction(Operator.push, expr.location, [expr.content])
+            continue
+        
+        if not expr.subexprs:
+            raise LispError(
+                'empty procedure call expression',
+                expr.location
+            )
 
-            if isinstance(head, Symbol):
-                if head.content == 'def':
-                    expr_stack.append(Instruction, (expr.subexprs[1]))
-                    expr_stack.append(expr.subexprs[2])
+        head = expr.subexprs[0]
+        tail = expr.subexprs[1:]
+
+        if isinstance(head, Symbol):
+            if head.content == 'def':
+                try:
+                    name_expr, value_expr = tail
+                except ValueError:
+                    raise LispError(f'Invalid definition; got {len(tail)} arguments but definitions must have exactly 2 arguments') from None
+
+                if isinstance(name_expr, Token):
+                    symbol = name_expr.content
+                    
+                    if isinstance(symbol, Symbol):
+                        expr_stack.append(Instruction(Operator.def_), expr.location, [name_expr.content.content])
+                        expr_stack.append(value_expr)
+                        continue
+                raise LispError('Invalid name in definition; it must be a symbol')
             
-            expr_stack.append(Instruction(expr))
-            expr_stack.append(head)
-            expr_stack.extend(reversed(expr.subexprs[1:]))
+        expr_stack.append(Instruction(Operator.call, expr.location, [len(tail)]))
+        expr_stack.append(head)
+        expr_stack.extend(reversed(tail))
 
 def compile_(expr: Expr) -> t.Iterator[Instruction]:
     for subexpr in expr.subexprs:
