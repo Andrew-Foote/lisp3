@@ -23,7 +23,7 @@ from parser_ import Expr
 #
 # (def pi 3.14) pi
 # 
-# DEF
+# BIND 3.14 TO PI
 # PUSH PI ON TOP OF STACK
 # RETURN VALUE ON TOP OF STACK
 #
@@ -66,6 +66,14 @@ def compile_expr(expr: Expr) -> t.Iterator[Instruction]:
                     'empty procedure call expression',
                     expr.location
                 )
+
+            head = expr.subexprs[0]
+
+            if isinstance(head, Symbol):
+                if head.content == 'def':
+                    expr
+                    expr_stack.append(Quote(expr.subexprs[1]))
+                    expr_stack.append(expr.subexprs[2])
             
             expr_stack.append(Instruction(expr))
             expr_stack.append(expr.subexprs[0])
